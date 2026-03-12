@@ -1,0 +1,44 @@
+// Diagnostic: Compare raw vs aggregated for Controller 1 Zone 5, last 7 days
+// Run: influx query --org Milano --token "YOUR_TOKEN" -f scripts/diagnose-c1z5-7d.flux
+
+// 1. Raw MWPWater: sum of intervalFlow
+raw = from(bucket: "MWPWater")
+  |> range(start: -7d, stop: now())
+  |> filter(fn: (r) => r._measurement == "mwp_sensors")
+  |> filter(fn: (r) => r.Controller == "1")
+  |> filter(fn: (r) => r.Zone == "5")
+  |> filter(fn: (r) => r._field == "intervalFlow")
+  |> sum()
+  |> map(fn: (r) => ({ r with _field: "raw_intervalFlow_sum", source: "MWPWater" }))
+
+// 2. Aggregated minute: sum of total_gallons (should match raw)
+minute = from(bucket: "MWPWater_Aggregated")
+  |> range(start: -7d, stop: now())
+  |> filter(fn: (r) => r._measurement == "minute")
+  |> filter(fn: (r) => r.Controller == "1")
+  |> filter(fn: (r) => r.Zone == "5")
+  |> filter(fn: (r) => r._field == "total_gallons")
+  |> sum()
+  |> map(fn: (r) => ({ r with _field: "minute_total_gallons_sum", source: "minute" }))
+
+// 3. Aggregated daily: sum of total_gallons (what Grafana shows)
+daily = from(bucket: "MWPWater_Aggregated")
+  |> range(start: -7d, stop: now())
+  |> filter(fn: (r) => r._measurement == "daily")
+  |> filter(fn: (r) => r.Controller == "1")
+  |> filter(fn: (r) => r.Zone == "5")
+  |> filter(fn: (r) => r._field == "total_gallons")
+  |> sum()
+  |> map(fn: (r) => ({ r with _field: "daily_total_gallons_sum", source: "daily" }))
+
+// 4. Raw: point count (sanity check)
+rawCount = from(bucket: "MWPWater")
+  |> range(start: -7d, stop: now())
+  |> filter(fn: (r) => r._measurement == "mwp_sensors")
+  |> filter(fn: (r) => r.Controller == "1")
+  |> filter(fn: (r) => r.Zone == "5")
+  |> filter(fn: (r) => r._field == "intervalFlow")
+  |> count()
+  |> map(fn: (r) => ({ r with _field: "raw_point_count", source: "MWPWater" }))
+
+union(tables: [raw, minute, daily, rawCount])
