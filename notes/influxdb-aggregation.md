@@ -146,8 +146,11 @@ t11 = base |> filter(fn: (r) => r._field == "gallonsTank") |> aggregateWindow(ev
 
 union(tables: [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11])
   |> set(key: "_measurement", value: "minute")
+  |> drop(columns: ["host", "topic"])
   |> to(bucket: "MWPWater_Aggregated", org: "Milano")
 ```
+
+**Important:** `drop(columns: ["host", "topic"])` ensures one series per (Controller, Zone). Without it, hourly/daily can merge multiple series and inflate totals (~19×).
 
 ## Hourly Aggregation Task
 
@@ -368,6 +371,17 @@ influx query \
   --token "RHl3fYEp8eMLtIUraVPzY4zp_hnnu2kYlR9hYrUaJLcq5mB2PvDsOi9SR0Tu_i-t_183fHb1a95BTJug-vAPVQ==" \
   'from(bucket: "MWPWater_Aggregated") |> range(start: -24h) |> filter(fn: (r) => r._measurement == "minute" and r._field == "total_gallons")'
 ```
+
+## Fix: Daily Aggregation Inflation (host/topic)
+
+If daily totals are ~19× higher than raw (e.g. 2684 vs 141 gallons), the cause is multiple series per (Controller, Zone) from `host` and `topic` tags. The 1-minute task must drop these before writing:
+
+```flux
+|> drop(columns: ["host", "topic"])
+|> to(bucket: "MWPWater_Aggregated", org: "Milano")
+```
+
+**To fix:** Update the 1-Minute Aggregates task in InfluxDB UI with the script above, then run the backfill below to clear and rebuild.
 
 ## Backfill: Clean MWPWater_Aggregated and Reaggregate (Last 30 Days)
 

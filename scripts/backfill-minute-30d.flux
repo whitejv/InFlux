@@ -28,4 +28,5 @@ t11 = base |> filter(fn: (r) => r._field == "gallonsTank") |> aggregateWindow(ev
 
 union(tables: [t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11])
   |> set(key: "_measurement", value: "minute")
+  |> drop(columns: ["host", "topic"])
   |> to(bucket: "MWPWater_Aggregated", org: "Milano")
