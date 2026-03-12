@@ -71,6 +71,8 @@ union(tables: [sumFields, meanFields])
 
 Use the dashboard time picker (top right). For a 24h log window like the phone app, select **Last 24 hours**.
 
+**Note:** For "Last 7 days", the first day's midnight (Chicago) can fall just outside the range, so one day's daily data may be excluded. Use **Last 8 days** if you need a full week of daily totals to match your app.
+
 ### Result
 
 | Zone | Gallons | Min | PSI | GPM |
