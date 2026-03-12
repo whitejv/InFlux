@@ -1,0 +1,30 @@
+// Diagnostic: Compare raw vs aggregated for Controller 1 Zone 15, last 7 days
+
+raw = from(bucket: "MWPWater")
+  |> range(start: -7d, stop: now())
+  |> filter(fn: (r) => r._measurement == "mwp_sensors")
+  |> filter(fn: (r) => r.Controller == "1")
+  |> filter(fn: (r) => r.Zone == "15")
+  |> filter(fn: (r) => r._field == "intervalFlow")
+  |> sum()
+  |> map(fn: (r) => ({ r with _field: "raw_sum", source: "MWPWater" }))
+
+minute = from(bucket: "MWPWater_Aggregated")
+  |> range(start: -7d, stop: now())
+  |> filter(fn: (r) => r._measurement == "minute")
+  |> filter(fn: (r) => r.Controller == "1")
+  |> filter(fn: (r) => r.Zone == "15")
+  |> filter(fn: (r) => r._field == "total_gallons")
+  |> sum()
+  |> map(fn: (r) => ({ r with _field: "minute_sum", source: "minute" }))
+
+daily = from(bucket: "MWPWater_Aggregated")
+  |> range(start: -7d, stop: now())
+  |> filter(fn: (r) => r._measurement == "daily")
+  |> filter(fn: (r) => r.Controller == "1")
+  |> filter(fn: (r) => r.Zone == "15")
+  |> filter(fn: (r) => r._field == "total_gallons")
+  |> sum()
+  |> map(fn: (r) => ({ r with _field: "daily_sum", source: "daily" }))
+
+union(tables: [raw, minute, daily])
