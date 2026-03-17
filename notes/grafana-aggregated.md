@@ -130,3 +130,57 @@ from(bucket: "MWPWater_Aggregated")
 ### Result
 
 One vertical bar per zone (0, 1, 2, …) with height = total gallons in the selected time range. Zones with no data won't appear unless you add a zero-fill step in Flux.
+
+## Time Series: Well GPM (Controller 3 Zone 1)
+
+Monitor well output (C3Z1) with avg, min, and max GPM over time. Use the dashboard time picker for different spans (Last 24h, 7d, 30d, etc.) and the aggregation variable for resolution.
+
+### Panel: Time Series
+
+**Add visualization → Time series** → Select InfluxDB data source.
+
+### Flux Queries
+
+**Query A – Aggregated (avg, min, max):**
+```flux
+from(bucket: "MWPWater_Aggregated")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "${aggregation}")
+  |> filter(fn: (r) => r.Controller == "3")
+  |> filter(fn: (r) => r.Zone == "1")
+  |> filter(fn: (r) => r._field == "avg_gpm" or r._field == "min_gpm" or r._field == "max_gpm")
+  |> yield(name: "aggregated")
+```
+
+**Query B – Raw GPM (1‑min from MWPWater):**
+```flux
+from(bucket: "MWPWater")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "mwp_sensors")
+  |> filter(fn: (r) => r.Controller == "3" and r.Zone == "1")
+  |> filter(fn: (r) => r._field == "intervalFlow")
+  |> aggregateWindow(every: 1m, fn: sum, createEmpty: false)
+  |> map(fn: (r) => ({ r with _field: "raw_gpm" }))
+  |> yield(name: "raw")
+```
+
+Raw GPM = sum(intervalFlow) per minute (gallons per minute). Always 1‑min resolution; overlays with aggregated series for comparison.
+
+### Panel Configuration
+
+- **Title:** e.g. "Well 3 GPM (C3Z1)"
+- **Legend:** Show series names (avg_gpm, min_gpm, max_gpm, raw_gpm)
+- **Overrides:** `_value` → Unit: `none`, Decimals: 1, Suffix: ` gal/min`
+- **Stacking:** None (lines overlay for comparison)
+- **Thresholds (optional):** Add a reference line at 9.95 GPM (expected output) to spot degradation
+
+### Aggregation by Time Span
+
+| Time span | Aggregation | Use |
+|-----------|-------------|-----|
+| Last 24–48h | minute | High-resolution, pump cycles |
+| Last 7 days | hourly | Daily patterns, short-term trends |
+| Last 30 days | daily | Weekly/monthly trends |
+| Months | daily or weekly | Long-term degradation |
+
+Use the dashboard **aggregation** variable to switch resolution. Raw GPM is always 1‑min; when viewing hourly/daily, it appears as a finer line for comparison. For true 1‑second detail (last few hours only), you’d need a separate raw query without `aggregateWindow`—heavier.
